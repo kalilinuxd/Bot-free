@@ -5,7 +5,6 @@
 import os
 import sys
 import time
-import json
 import signal
 import threading
 import subprocess
@@ -14,25 +13,30 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # ============================================================
-# ⚙️ الإعدادات - ضع التوكن هنا
+# ⚙️ الإعدادات الأساسية - فقط التوكن
 # ============================================================
 
-TOKEN = "8960077800:AAEcN_hkbRLUUf6sNOJZUSSCyfnJoFuLbgQ"  # <--- ضع توكن بوتك هنا
+TOKEN = "8960077800:AAEj8H729UQnN2uaqa8mBceJ78XbhIndUzk"  # سيُقرأ من المتغير البيئي إن وُجد
+
+# محاولة قراءة التوكن من البيئة أولاً
+if os.getenv("TOKEN"):
+    TOKEN = os.getenv("TOKEN")
 
 # ============================================================
-# المتغيرات العامة
+# المتغيرات العامة (تُضبط عبر تيليجرام فقط)
 # ============================================================
 
 BOT_PROCESS = None
 BOT_RUNNING = False
 BOT_LOGS = []
+
+# الإعدادات الافتراضية (تُعدّل عبر تيليجرام)
 CONFIG = {
     "matches_per_session": 5,
     "auto_mode": True,
     "delay_min": 0.3,
     "delay_max": 1.5
 }
-CONFIG_FILE = "bot_config.json"
 
 # ============================================================
 # دوال المساعدة
@@ -44,20 +48,6 @@ def log_message(msg):
     if len(BOT_LOGS) > 200:
         BOT_LOGS.pop(0)
     print(msg)
-
-def load_config():
-    global CONFIG
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            CONFIG.update(json.load(f))
-        log_message("✅ تم تحميل الإعدادات")
-    except:
-        save_config()
-        log_message("📝 تم إنشاء ملف إعدادات جديد")
-
-def save_config():
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(CONFIG, f, indent=4)
 
 def get_status_text():
     status = "🟢 يعمل" if BOT_RUNNING else "🔴 متوقف"
@@ -85,19 +75,25 @@ def run_freefire_bot():
     
     log_message("🚀 بدء تشغيل بوت Free Fire...")
     
+    # تمرير الإعدادات للبوت عبر متغيرات بيئية مؤقتة
+    env = os.environ.copy()
+    env["MATCHES"] = str(CONFIG['matches_per_session'])
+    env["AUTO_MODE"] = str(CONFIG['auto_mode'])
+    env["DELAY_MIN"] = str(CONFIG['delay_min'])
+    env["DELAY_MAX"] = str(CONFIG['delay_max'])
+    
     try:
-        # تشغيل البوت كعملية منفصلة
         BOT_PROCESS = subprocess.Popen(
             [sys.executable, "freefire_bot.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1
+            bufsize=1,
+            env=env
         )
         BOT_RUNNING = True
         log_message(f"✅ البوت يعمل (PID: {BOT_PROCESS.pid})")
         
-        # قراءة المخرجات في خيط منفصل
         def read_output():
             for line in BOT_PROCESS.stdout:
                 log_message(f"[بوت] {line.strip()}")
@@ -256,7 +252,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action.startswith("set_matches_"):
         value = int(action.split("_")[2])
         CONFIG['matches_per_session'] = value
-        save_config()
         log_message(f"✅ تم ضبط المباريات إلى {value}")
         await query.edit_message_text(
             f"✅ تم ضبط عدد المباريات إلى {value}.",
@@ -267,7 +262,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ===== تبديل الوضع التلقائي =====
     elif action == "toggle_auto":
         CONFIG['auto_mode'] = not CONFIG['auto_mode']
-        save_config()
         log_message(f"✅ الوضع التلقائي: {'ON' if CONFIG['auto_mode'] else 'OFF'}")
         await query.edit_message_text(
             f"✅ تم {'تفعيل' if CONFIG['auto_mode'] else 'إيقاف'} الوضع التلقائي.",
@@ -297,7 +291,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         max_delay = float(parts[3])
         CONFIG['delay_min'] = min_delay
         CONFIG['delay_max'] = max_delay
-        save_config()
         log_message(f"✅ تم ضبط التأخير إلى {min_delay}-{max_delay}")
         await query.edit_message_text(
             f"✅ تم ضبط التأخير إلى {min_delay}-{max_delay} ثانية.",
@@ -307,21 +300,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # ===== رجوع =====
     elif action == "back":
-        keyboard = [
-            [InlineKeyboardButton("▶️ تشغيل البوت", callback_data="run")],
-            [InlineKeyboardButton("⏹ إيقاف البوت", callback_data="stop")],
-            [InlineKeyboardButton("🔄 إعادة تشغيل", callback_data="restart")],
-            [InlineKeyboardButton("📊 الحالة", callback_data="status")],
-            [InlineKeyboardButton("📜 السجلات", callback_data="logs")],
-            [InlineKeyboardButton("⚙️ الإعدادات", callback_data="settings")],
-            [InlineKeyboardButton("🗑 مسح السجلات", callback_data="clear_logs")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            "🤖 *مركز التحكم - بوت Free Fire*\n\nاختر أمراً:",
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
+        await show_main_menu(query)
 
 async def show_settings(query):
     keyboard = [
@@ -337,12 +316,32 @@ async def show_settings(query):
         parse_mode="Markdown"
     )
 
+async def show_main_menu(query):
+    keyboard = [
+        [InlineKeyboardButton("▶️ تشغيل البوت", callback_data="run")],
+        [InlineKeyboardButton("⏹ إيقاف البوت", callback_data="stop")],
+        [InlineKeyboardButton("🔄 إعادة تشغيل", callback_data="restart")],
+        [InlineKeyboardButton("📊 الحالة", callback_data="status")],
+        [InlineKeyboardButton("📜 السجلات", callback_data="logs")],
+        [InlineKeyboardButton("⚙️ الإعدادات", callback_data="settings")],
+        [InlineKeyboardButton("🗑 مسح السجلات", callback_data="clear_logs")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        "🤖 *مركز التحكم - بوت Free Fire*\n\nاختر أمراً:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
 # ============================================================
 # التشغيل الرئيسي
 # ============================================================
 
 def main():
-    load_config()
+    if not TOKEN or TOKEN == "ضع_التوكن_هنا":
+        print("❌ خطأ: لم يتم تعيين توكن بوت تيليجرام.")
+        print("💡 ضع التوكن في المتغير البيئي TOKEN أو في السطر المناسب.")
+        sys.exit(1)
     
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
