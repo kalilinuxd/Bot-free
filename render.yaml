@@ -9,5 +9,4 @@ services:
     envVars:
       - key: TOKEN
         sync: false
-    healthCheckPath: /
     autoDeploy: true
