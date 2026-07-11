@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: freefire-bot
+    runtime: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: EMAIL
+        sync: false
+      - key: PASSWORD
+        sync: false
+      - key: AUTO_MODE
+        value: "true"
+      - key: MATCHES_PER_SESSION
+        value: "5"
