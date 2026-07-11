@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-وحدة التحكم الكاملة لبوت Free Fire عبر تيليجرام
-للأغراض التعليمية فقط
-"""
 
 import os
 import sys
@@ -21,7 +17,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 # ⚙️ الإعدادات - ضع التوكن هنا
 # ============================================================
 
-TOKEN = "ضع_التوكن_هنا"  # <--- ضع توكن بوتك هنا
+TOKEN = "8960077800:AAEcN_hkbRLUUf6sNOJZUSSCyfnJoFuLbgQ"  # <--- ضع توكن بوتك هنا
 
 # ============================================================
 # المتغيرات العامة
